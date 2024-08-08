@@ -128,8 +128,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         return new UserLoginRespDTO(uuid);
     }
 
+    /**
+     * 检查用户是否登录
+     */
     @Override
     public Boolean checkLogin(String username, String token) {
         return stringRedisTemplate.opsForHash().get(USER_LOGIN_KEY + username, token) != null;
+    }
+
+    /**
+     * 退出登录
+     */
+    @Override
+    public void logout(String username, String token) {
+        if (checkLogin(username, token)) {
+            stringRedisTemplate.delete(USER_LOGIN_KEY + username);
+            return;
+        }
+        throw new ClientException("用户Token不存在或用户未登录");
     }
 }
