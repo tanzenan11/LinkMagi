@@ -65,6 +65,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         return !userRegisterCachePenetrationBloomFilter.contains(username);
     }
 
+    /**
+     * 用户注册
+     */
     @Override
     public void register(UserRegisterReqDTO requestParam) {
         if(!hasUsername(requestParam.getUsername())) {
