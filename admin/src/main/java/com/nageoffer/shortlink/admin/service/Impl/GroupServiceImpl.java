@@ -27,7 +27,6 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
 
     /**
      * 新增短链接分组
-     *
      */
     @Override
     public void saveGroup(String groupName) {
@@ -48,6 +47,9 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         baseMapper.insert(groupDO);
     }
 
+    /**
+     * 查询用户短链接分组集合
+   */
     @Override
     public List<ShortLinkGroupRespDTO> listGroup() {
         LambdaQueryWrapper<GroupDO> queryWrapper = Wrappers.lambdaQuery(GroupDO.class)
@@ -82,6 +84,9 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         baseMapper.update(groupDO,updateWrapper);
     }
 
+    /**
+     * 短链接分组排序
+     */
     @Override
     public void sortGroup(List<ShortLinkGroupSortReqDTO> requestParam) {
         requestParam.forEach(each -> {
