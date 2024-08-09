@@ -62,22 +62,32 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
    */
     @Override
     public List<ShortLinkGroupRespDTO> listGroup() {
+        // 创建查询条件构造器，查询未被删除的、当前用户创建的短链接分组，并按排序字段和更新时间倒序排列
         LambdaQueryWrapper<GroupDO> queryWrapper = Wrappers.lambdaQuery(GroupDO.class)
-                .eq(GroupDO::getDelFlag, 0)
-                .eq(GroupDO::getUsername, UserContext.getUsername())
-                .orderByDesc(List.of(GroupDO::getSortOrder, GroupDO::getUpdateTime));
+                .eq(GroupDO::getDelFlag, 0)  // 查询未被删除的分组
+                .eq(GroupDO::getUsername, UserContext.getUsername())  // 仅查询当前用户的分组
+                .orderByDesc(List.of(GroupDO::getSortOrder, GroupDO::getUpdateTime));  // 按排序顺序和更新时间倒序排列
+
+        // 执行查询，获取分组列表
         List<GroupDO> groupDOList = baseMapper.selectList(queryWrapper);
+        // 将查询到的分组列表转换为响应 DTO 列表
         List<ShortLinkGroupRespDTO> shortLinkGroupRespDTOList = BeanUtil.copyToList(groupDOList, ShortLinkGroupRespDTO.class);
+        // 调用远程服务，获取每个分组中短链接的计数信息
         Result<List<ShortLinkGroupCountQueryRespDTO>> listResult = shortLinkRemoteService
                 .listGroupShortLinkCount(groupDOList.stream().map(GroupDO::getGid).toList());
+        // 遍历每个分组的响应 DTO，并将对应的短链接计数信息填充到 DTO 中
         shortLinkGroupRespDTOList.forEach(each -> {
+            // 找到当前分组对应的短链接计数信息
             Optional<ShortLinkGroupCountQueryRespDTO> first = listResult.getData().stream()
                     .filter(item -> Objects.equals(item.getGid(), each.getGid()))
                     .findFirst();
+            // 如果找到对应的计数信息，将计数赋值给 DTO
             first.ifPresent(item -> each.setShortLinkCount(first.get().getShortLinkCount()));
         });
+        // 返回填充了短链接计数信息的分组列表
         return shortLinkGroupRespDTOList;
     }
+
 
     @Override
     public void updateGroup(ShortLinkGroupUpdateReqDTO requestParam) {
