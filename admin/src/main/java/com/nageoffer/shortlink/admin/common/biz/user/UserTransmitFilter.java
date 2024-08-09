@@ -60,13 +60,11 @@ public class UserTransmitFilter implements Filter {
         if (!IGNORE_URI.contains(requestURI)) {
             String method = httpServletRequest.getMethod();
             if (!(Objects.equals(requestURI, "/api/short-link/admin/v1/user") && Objects.equals(method, "POST"))) {
-                String username = httpServletRequest.getHeader("username");
                 String token = httpServletRequest.getHeader("token");
-                if (!StrUtil.isAllNotBlank(username, token)) {
+                if (StrUtil.isBlank(token)) {
                     returnJson((HttpServletResponse) servletResponse, JSON.toJSONString(Results.failure(new ClientException(USER_TOKEN_FAIL))));
                     return;
                 }
-                Object userInfoJsonStr = null;
                 try {
                     Map<Object, Object> userMap = stringRedisTemplate.opsForHash().entries(USER_LOGIN_KEY + token);
                     if (userMap.isEmpty()) {
@@ -95,7 +93,7 @@ public class UserTransmitFilter implements Filter {
     }
 
     /*返回客户端数据*/
-    private void returnJson(HttpServletResponse response, String json) throws Exception{
+    private void returnJson(HttpServletResponse response, String json) throws Exception {
         PrintWriter writer = null;
         response.setCharacterEncoding("UTF-8");
         response.setContentType("text/html; charset=utf-8");
