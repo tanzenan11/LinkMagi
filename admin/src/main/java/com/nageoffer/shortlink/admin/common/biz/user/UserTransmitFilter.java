@@ -19,6 +19,7 @@ package com.nageoffer.shortlink.admin.common.biz.user;
 
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.google.common.collect.Lists;
 import com.nageoffer.shortlink.admin.common.convention.exception.ClientException;
 import com.nageoffer.shortlink.admin.common.convention.result.Results;
@@ -32,6 +33,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static com.nageoffer.shortlink.admin.common.constant.RedisCacheConstant.USER_LOGIN_KEY;
@@ -46,7 +48,7 @@ public class UserTransmitFilter implements Filter {
     private final StringRedisTemplate stringRedisTemplate;
 
     private static final List<String> IGNORE_URI = Lists.newArrayList(
-            "/api/short-link/admin/v1/login",
+            "/api/short-link/admin/v1/user/login",
             "/api/short-link/admin/v1/user/has-username"
     );
 
@@ -66,16 +68,21 @@ public class UserTransmitFilter implements Filter {
                 }
                 Object userInfoJsonStr = null;
                 try {
-                    userInfoJsonStr = stringRedisTemplate.opsForHash().get(USER_LOGIN_KEY + username, token);
-                    if (userInfoJsonStr == null) {
+                    Map<Object, Object> userMap = stringRedisTemplate.opsForHash().entries(USER_LOGIN_KEY + token);
+                    if (userMap.isEmpty()) {
                         throw new ClientException(USER_TOKEN_FAIL);
                     }
+                    // 将 Map 转换为 JSONObject
+                    JSONObject jsonObject = new JSONObject(userMap);
+                    // 将 JSONObject 转换为 UserInfoDTO 对象
+                    UserInfoDTO userInfoDTO = JSON.toJavaObject(jsonObject, UserInfoDTO.class);
+                    // 设置用户信息到 UserContext
+                    UserContext.setUser(userInfoDTO);
                 } catch (Exception e) {
                     returnJson((HttpServletResponse) servletResponse, JSON.toJSONString(Results.failure(new ClientException(USER_TOKEN_FAIL))));
                     return;
                 }
-                UserInfoDTO userInfoDTO = JSON.parseObject(userInfoJsonStr.toString(), UserInfoDTO.class);
-                UserContext.setUser(userInfoDTO);
+
             }
         }
         try {

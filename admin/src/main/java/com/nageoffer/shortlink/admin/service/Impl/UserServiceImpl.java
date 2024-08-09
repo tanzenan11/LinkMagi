@@ -1,8 +1,8 @@
 package com.nageoffer.shortlink.admin.service.Impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.lang.UUID;
-import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -26,6 +26,10 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.nageoffer.shortlink.admin.common.constant.RedisCacheConstant.LOCK_USER_REGISTER_KEY;
@@ -35,7 +39,7 @@ import static com.nageoffer.shortlink.admin.common.enums.UserErrorCodeEnum.USER_
 
 /**
  * <p>
- *  用户接口实现层
+ * 用户接口实现层
  * </p>
  *
  * @author 谭泽楠
@@ -72,7 +76,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
      */
     @Override
     public void register(UserRegisterReqDTO requestParam) {
-        if(!hasUsername(requestParam.getUsername())) {
+        if (!hasUsername(requestParam.getUsername())) {
             throw new ClientException(UserErrorCodeEnum.USER_NAME_EXIST);
         }
         RLock lock = redissonClient.getLock(LOCK_USER_REGISTER_KEY + requestParam.getUsername());
@@ -81,11 +85,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         }
         try {
             int insert = baseMapper.insert(BeanUtil.toBean(requestParam, UserDO.class));
-            if(insert < 1){
+            if (insert < 1) {
                 throw new ClientException(UserErrorCodeEnum.USER_SAVE_ERROR);
             }
             userRegisterCachePenetrationBloomFilter.add(requestParam.getUsername());
-            groupService.saveGroup(requestParam.getUsername(),"默认分组");
+            groupService.saveGroup(requestParam.getUsername(), "默认分组");
         } catch (ClientException e) {
             throw new ClientException(USER_EXIST);
         } finally {
@@ -102,7 +106,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         // TODO 验证当前用户是否为登录用户
         LambdaUpdateWrapper<UserDO> updateWrapper = Wrappers.lambdaUpdate(UserDO.class)
                 .eq(UserDO::getUsername, requestParam.getUsername());
-        baseMapper.update(BeanUtil.toBean(requestParam,UserDO.class), updateWrapper);
+        baseMapper.update(BeanUtil.toBean(requestParam, UserDO.class), updateWrapper);
     }
 
     /**
@@ -110,6 +114,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
      */
     @Override
     public UserLoginRespDTO login(UserLoginReqDTO requestParam) {
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(USER_LOGIN_KEY + requestParam.getUsername()))) {
+            throw new ClientException("用户已登录");
+        }
         //验证用户是否存在数据库
         LambdaQueryWrapper<UserDO> queryWrapper = Wrappers.lambdaQuery(UserDO.class)
                 .eq(UserDO::getUsername, requestParam.getUsername())
@@ -119,9 +126,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
         if (userDO == null) {
             throw new ClientException(UserErrorCodeEnum.USER_NULL);
         }
-        if(Boolean.TRUE.equals(stringRedisTemplate.hasKey(USER_LOGIN_KEY + requestParam.getUsername()))){
-            throw new ClientException("用户已登录");
-        }
+
         /**
          * Hash
          * Key：login_用户名
@@ -129,10 +134,30 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
          *  Key：token标识
          *  Val：JSON 字符串（用户信息）
          */
-        String uuid = UUID.randomUUID().toString(true);
-        stringRedisTemplate.opsForHash().put(USER_LOGIN_KEY + requestParam.getUsername(), uuid, JSON.toJSONString(userDO));
-        stringRedisTemplate.expire(USER_LOGIN_KEY + requestParam.getUsername(), 30L, TimeUnit.DAYS);
-        return new UserLoginRespDTO(uuid);
+        //解决用户重复登录，将用户信息存入redis
+        String token = UUID.randomUUID().toString(true);
+        // 将 UserDO 对象转换为 Map<String, Object>
+        // 定义时间格式
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        // 将 UserDO 对象转换为 Map<String, Object>
+        Map<String, Object> userMap = BeanUtil.beanToMap(userDO, new HashMap<>(),
+                CopyOptions.create()
+                        .setIgnoreNullValue(true) // 忽略 null 值
+                        .setFieldValueEditor((fieldName, fieldValue) -> {
+                            if (fieldValue instanceof Date) {
+                                // 将 Date 转换为字符串
+                                return dateFormat.format(fieldValue);
+                            } else if (fieldValue instanceof Long || fieldValue instanceof Integer) {
+                                // 将 Long 和 Integer 转换为字符串
+                                return fieldValue.toString();
+                            }
+                            return fieldValue;
+                        }));
+        // 7.3.存储
+        String tokenKey = USER_LOGIN_KEY + token;
+        stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
+        stringRedisTemplate.expire(tokenKey, 30L, TimeUnit.DAYS);
+        return new UserLoginRespDTO(token);
     }
 
     /**
