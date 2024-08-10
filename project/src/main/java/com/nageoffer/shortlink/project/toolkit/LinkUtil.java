@@ -19,6 +19,7 @@ public class LinkUtil {
      */
     public static long getLinkCacheValidTime(Date validDate) {
         return Optional.ofNullable(validDate)
+                //时间后移
                 .map(each -> DateUtil.between(new Date(), each, DateUnit.MS))
                 .orElse(DEFAULT_CACHE_VALID_TIME);
     }
