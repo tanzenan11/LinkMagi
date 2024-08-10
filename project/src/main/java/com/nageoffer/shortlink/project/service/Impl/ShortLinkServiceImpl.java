@@ -148,6 +148,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             log.warn("短链接:{}重复入库", fullShortUrl);
             throw new ServiceException(String.format("短链接: %s 生成重复", fullShortUrl));
         }
+        // 存入缓存预热
         stringRedisTemplate.opsForValue().set(
                 fullShortUrl,
                 requestParam.getOriginUrl(),
