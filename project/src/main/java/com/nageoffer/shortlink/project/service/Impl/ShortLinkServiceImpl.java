@@ -75,32 +75,39 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     public void restoreUrl(String shortUri, ServletRequest request, ServletResponse response) {
         String serverName = request.getServerName();
         String fullShortUrl = serverName + "/" + shortUri;
+        //获取缓存
         String originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl));
         //获取到原始链接
         if (StrUtil.isNotBlank(originalLink)) {
+            //缓存存在直接重定向到原始网站链接
             ((HttpServletResponse) response).sendRedirect(originalLink);
             return;
         }
+        //布隆过滤器
         boolean contains = shortUriCreateCachePenetrationBloomFilter.contains(fullShortUrl);
         if(!contains){
+            // 布隆判断不存在
             ((HttpServletResponse) response).sendRedirect("/page/notfound");
             return;
         }
+        //判断缓存是否存在空值
         String gotoIsNullShortLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl));
         if(StrUtil.isNotBlank(gotoIsNullShortLink)){
+            //缓存存在空值直接重定向
             ((HttpServletResponse) response).sendRedirect("/page/notfound");
             return;
         }
-        // 分布式锁
+        // 分布式锁防止缓存击穿以及缓存穿透
         RLock lock = redissonClient.getLock(String.format(LOCK_GOTO_SHORT_LINK_KEY, fullShortUrl));
         lock.lock();
         try {
-            // 双重判定锁
+            // 双重判定锁，对缓存再次判断，防止多线程环境下多次查询数据库
             originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl));
             if (StrUtil.isNotBlank(originalLink)) {
                 ((HttpServletResponse) response).sendRedirect(originalLink);
                 return;
             }
+            // 查询数据库，先查t_link_goto得到gid
             LambdaQueryWrapper<ShortLinkGotoDO> linkGotoQueryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
                     .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
             ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(linkGotoQueryWrapper);
@@ -109,6 +116,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 ((HttpServletResponse) response).sendRedirect("/page/notfound");
                 return;
             }
+            // 查询t_link表得到短链接数据
             LambdaQueryWrapper<ShortLinkDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkDO.class)
                     .eq(ShortLinkDO::getGid, shortLinkGotoDO.getGid())
                     .eq(ShortLinkDO::getFullShortUrl, fullShortUrl)
@@ -116,19 +124,25 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .eq(ShortLinkDO::getEnableStatus, 0);
             ShortLinkDO shortLinkDO = baseMapper.selectOne(queryWrapper);
             if (shortLinkDO != null) {
+                //存入缓存
+                //判断有效期
                 if (shortLinkDO.getValidDate() != null && shortLinkDO.getValidDate().before(new Date())) {
+                    //已过期的话直接存入空值缓存
                     stringRedisTemplate.opsForValue().set(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl), "-", 30, TimeUnit.MINUTES);
                     ((HttpServletResponse) response).sendRedirect("/page/notfound");
                     return;
                 }
+                // 没过期的话，按照对应时间存入缓存
                 stringRedisTemplate.opsForValue().set(
                         String.format(GOTO_SHORT_LINK_KEY, fullShortUrl),
                         shortLinkDO.getOriginUrl(),
                         LinkUtil.getLinkCacheValidTime(shortLinkDO.getValidDate()), TimeUnit.MILLISECONDS
                 );
+                //重定向到对应原始链接网站
                 ((HttpServletResponse) response).sendRedirect(shortLinkDO.getOriginUrl());
             }
         }finally {
+            //释放锁
             lock.unlock();
         }
     }
