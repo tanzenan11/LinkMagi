@@ -30,6 +30,7 @@
         <guava.version>30.0-jre</guava.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
+        <jsoup.version>1.15.3</jsoup.version>
     </properties>
 
     <dependencies>
