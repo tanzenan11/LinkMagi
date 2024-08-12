@@ -123,6 +123,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .eq(ShortLinkDO::getDelFlag, 0)
                     .eq(ShortLinkDO::getEnableStatus, 0);
             ShortLinkDO shortLinkDO = baseMapper.selectOne(queryWrapper);
+
             //存入缓存
             if (shortLinkDO == null || shortLinkDO.getValidDate().before(new Date())) {
                 //数据库查询为空或者已过期的话直接存入空值缓存
