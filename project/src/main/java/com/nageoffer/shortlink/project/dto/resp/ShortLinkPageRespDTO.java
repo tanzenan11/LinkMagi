@@ -119,4 +119,5 @@ public class ShortLinkPageRespDTO {
      * 今日UIP
      */
     private Integer todayUip;
+
 }
