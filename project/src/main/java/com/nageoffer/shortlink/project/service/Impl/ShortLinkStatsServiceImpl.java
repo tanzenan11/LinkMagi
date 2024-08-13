@@ -33,6 +33,11 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
     private final LinkDeviceStatsMapper linkDeviceStatsMapper;
     private final LinkNetworkStatsMapper linkNetworkStatsMapper;
 
+    /**
+     * 获取单个短链接监控数据
+     * @param requestParam 获取短链接监控数据入参
+     * @return
+     */
     @Override
     public ShortLinkStatsRespDTO oneShortLinkStats(ShortLinkStatsReqDTO requestParam) {
         List<LinkAccessStatsDO> listStatsByShortLink = linkAccessStatsMapper.listStatsByShortLink(requestParam);
