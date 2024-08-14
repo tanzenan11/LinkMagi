@@ -2,8 +2,10 @@ package com.nageoffer.shortlink.project.toolkit;
 
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.util.StrUtil;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.net.URI;
 import java.util.Date;
 import java.util.Optional;
 
@@ -129,4 +131,33 @@ public class LinkUtil {
         // 例如，通过调用IP地址库或调用第三方服务来判断网络类型
         return actualIp.startsWith("192.168.") || actualIp.startsWith("10.") ? "WIFI" : "Mobile";
     }
+
+    /**
+     * 获取原始链接中的域名
+     * 如果原始链接包含 www 开头的话需要去掉
+     *
+     * @param url 创建或者修改短链接的原始链接
+     * @return 原始链接中的域名
+     */
+    public static String extractDomain(String url) {
+        String domain = null;
+        try {
+            // 创建 URI 对象，用于解析输入的 URL 字符串
+            URI uri = new URI(url);
+            // 获取 URI 中的主机名（域名部分）
+            String host = uri.getHost();
+            if (StrUtil.isNotBlank(host)) {
+                // 如果主机名非空，赋值给 domain 变量
+                domain = host;
+                // 检查主机名是否以 "www." 开头，如果是，则去掉 "www."
+                if (domain.startsWith("www.")) {
+                    domain = host.substring(4); // 截取 "www." 后面的部分作为域名
+                }
+            }
+        } catch (Exception ignored) {
+            // 捕获所有异常并忽略，保证方法不会因异常而中断
+        }
+        return domain; // 返回解析后的域名
+    }
+
 }
