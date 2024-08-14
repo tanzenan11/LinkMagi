@@ -6,7 +6,7 @@ import com.nageoffer.shortlink.project.dao.entity.ShortLinkDO;
 import com.nageoffer.shortlink.project.dto.req.RecycleBinRecoverReqDTO;
 import com.nageoffer.shortlink.project.dto.req.RecycleBinRemoveReqDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkRecycleBinPageReqDTO;
-import com.nageoffer.shortlink.project.dto.resp.RecycleBinSaveReqDTO;
+import com.nageoffer.shortlink.project.dto.req.RecycleBinSaveReqDTO;
 import com.nageoffer.shortlink.project.dto.resp.ShortLinkPageRespDTO;
 
 public interface RecycleBinService extends IService<ShortLinkDO> {
