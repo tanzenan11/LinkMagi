@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nageoffer.shortlink.project.dao.entity.*;
 import com.nageoffer.shortlink.project.dao.mapper.*;
+import com.nageoffer.shortlink.project.dto.req.ShortLinkGroupStatsAccessRecordReqDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkGroupStatsReqDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkStatsAccessRecordReqDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkStatsReqDTO;
@@ -439,14 +440,53 @@ public class ShortLinkStatsServiceImpl implements ShortLinkStatsService {
             String uvType = uvTypeList.stream()
                     .filter(item -> Objects.equals(each.getUser(), item.get("user")))
                     .findFirst()
-                    .map(item -> item.get("UvType"))
+                    .map(item -> item.get("uvType"))
+                    .map(Object::toString)
+                    .orElse("老访客");
+            each.setUvType(uvType);
+        });
+        return actualResult;
+    }
+
+    /**
+     * 访问分组短链接指定时间内访问记录监控数据
+     */
+    @Override
+    public IPage<ShortLinkStatsAccessRecordRespDTO> groupShortLinkStatsAccessRecord(ShortLinkGroupStatsAccessRecordReqDTO requestParam) {
+        // 查询日志表t_link_access_logs记录
+        LambdaQueryWrapper<LinkAccessLogsDO> queryWrapper = Wrappers.lambdaQuery(LinkAccessLogsDO.class)
+                .eq(LinkAccessLogsDO::getGid, requestParam.getGid())
+                .between(LinkAccessLogsDO::getCreateTime, requestParam.getStartDate(), requestParam.getEndDate())
+                .eq(LinkAccessLogsDO::getDelFlag, 0)
+                .orderByDesc(LinkAccessLogsDO::getCreateTime);
+        IPage<LinkAccessLogsDO> linkAccessLogsDOIPage = linkAccessLogsMapper.selectPage(requestParam, queryWrapper);
+        // 将属性赋值给实际的返回对象
+        IPage<ShortLinkStatsAccessRecordRespDTO> actualResult = linkAccessLogsDOIPage.convert(each -> BeanUtil.toBean(each, ShortLinkStatsAccessRecordRespDTO.class));
+        // 判断新老访客
+        // 取出用户信息
+        List<String> userAccessLogsList = actualResult.getRecords().stream()
+                .map(ShortLinkStatsAccessRecordRespDTO::getUser)
+                .toList();
+        // 如果不存在用户信息直接返回
+        if (CollectionUtil.isEmpty(userAccessLogsList)) {
+            return actualResult;
+        }
+        // 封装传递参数UserAccessLogParam
+        UserAccessLogParam param = BeanUtil.toBean(requestParam, UserAccessLogParam.class);
+        param.setUserAccessLogsList(userAccessLogsList);
+        List<Map<String, Object>> uvTypeList = linkAccessLogsMapper.selectGroupUvTypeByUsers(param);
+        // 获取用户信息是否新老访客
+        actualResult.getRecords().forEach(each -> {
+            String uvType = uvTypeList.stream()
+                    .filter(item -> Objects.equals(each.getUser(), item.get("user")))
+                    .findFirst()
+                    .map(item -> item.get("uvType"))
                     .map(Object::toString)
                     .orElse("旧访客");
             each.setUvType(uvType);
         });
         return actualResult;
     }
-
 
 
 }
