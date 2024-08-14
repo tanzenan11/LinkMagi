@@ -1,11 +1,13 @@
 package com.nageoffer.shortlink.admin.service.Impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nageoffer.shortlink.admin.common.biz.user.UserContext;
+import com.nageoffer.shortlink.admin.common.convention.exception.ClientException;
 import com.nageoffer.shortlink.admin.common.convention.result.Result;
 import com.nageoffer.shortlink.admin.dao.entity.GroupDO;
 import com.nageoffer.shortlink.admin.dao.mapper.GroupMapper;
@@ -16,20 +18,34 @@ import com.nageoffer.shortlink.admin.remote.dto.ShortLinkRemoteService;
 import com.nageoffer.shortlink.admin.remote.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import com.nageoffer.shortlink.admin.service.GroupService;
 import com.nageoffer.shortlink.admin.toolkit.RandomGenerator;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static com.nageoffer.shortlink.admin.common.constant.RedisCacheConstant.LOCK_GROUP_CREATE_KEY;
+
 /**
  * 短链接分组接口实现层
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implements GroupService {
+
     ShortLinkRemoteService shortLinkRemoteService = new ShortLinkRemoteService() {};
+
+    private final RedissonClient redissonClient;
+
+    @Value("${short-link.group.max-num}")
+    private Integer groupMaxNum;   //限制创建最大分组数量为20
+
     /**
      * 新增短链接分组
      */
@@ -43,21 +59,31 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
      */
     @Override
     public void saveGroup(String userName, String groupName) {
-        String randomGid;
-        while (true){
-            randomGid = RandomGenerator.generateRandom();
-            if(!hasGid(userName,randomGid)){
-                // 代表不存在
-                break;
+        RLock lock = redissonClient.getLock(String.format(LOCK_GROUP_CREATE_KEY, userName));
+        lock.lock();
+        try {
+            // 查询已存在短链接分组数
+            LambdaQueryWrapper<GroupDO> queryWrapper = Wrappers.lambdaQuery(GroupDO.class)
+                    .eq(GroupDO::getUsername, userName)
+                    .eq(GroupDO::getDelFlag, 0);
+            List<GroupDO> groupDOList = baseMapper.selectList(queryWrapper);
+            if (CollUtil.isNotEmpty(groupDOList) && groupDOList.size() == groupMaxNum) {
+                throw new ClientException(String.format("已超出最大分组数：%d", groupMaxNum));
             }
+            String gid;
+            do {
+                gid = RandomGenerator.generateRandom();
+            } while (hasGid(userName, gid)); // 要是存在一直循环，直到不存在
+            GroupDO groupDO = GroupDO.builder()
+                    .gid(gid)
+                    .sortOrder(0)
+                    .username(userName)
+                    .name(groupName)
+                    .build();
+            baseMapper.insert(groupDO);
+        } finally {
+            lock.unlock();
         }
-        GroupDO groupDO = GroupDO.builder()
-                .gid(randomGid)
-                .name(groupName)
-                .sortOrder(0)
-                .username(userName)
-                .build();
-        baseMapper.insert(groupDO);
     }
 
     /**
@@ -134,6 +160,13 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         });
     }
 
+
+    /**
+     * 判断当前gid分组是否存在
+     * @param userName
+     * @param randomGid
+     * @return 存在返回true，不存在返回false
+     */
     private boolean hasGid(String userName,String randomGid) {
          //获取随机6位数字
         LambdaQueryWrapper<GroupDO> queryWrapper = Wrappers.lambdaQuery(GroupDO.class)
