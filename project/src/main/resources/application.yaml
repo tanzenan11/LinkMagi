@@ -21,7 +21,16 @@ short-link:
   stats:
     locale:
       amap-key: 303b853b8d7b4625f83c86d6895cc3c4
-
+  goto-domain:
+    white-list:
+      enable: true
+      names: '拿个offer,知乎,掘金,博客园,B站'
+      details:
+        - nageoffer.com
+        - zhihu.com
+        - juejin.cn
+        - cnblogs.com
+        - bilibili.com
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
