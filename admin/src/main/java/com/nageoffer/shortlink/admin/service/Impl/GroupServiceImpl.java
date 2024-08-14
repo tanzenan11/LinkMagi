@@ -38,6 +38,9 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         saveGroup(UserContext.getUsername(), groupName);
     }
 
+    /**
+     * 新增短链接分组
+     */
     @Override
     public void saveGroup(String userName, String groupName) {
         String randomGid;
@@ -88,7 +91,9 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         return shortLinkGroupRespDTOList;
     }
 
-
+    /**
+     * 修改短链接分组名称
+     */
     @Override
     public void updateGroup(ShortLinkGroupUpdateReqDTO requestParam) {
         LambdaUpdateWrapper<GroupDO> updateWrapper = Wrappers.lambdaUpdate(GroupDO.class)
@@ -100,6 +105,10 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         baseMapper.update(groupDO, updateWrapper);
     }
 
+    /**
+     * 删除短链接
+     * @param gid
+     */
     @Override
     public void deleteGroup(String gid) {
         LambdaUpdateWrapper<GroupDO> updateWrapper = Wrappers.lambdaUpdate(GroupDO.class)
