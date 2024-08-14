@@ -59,6 +59,7 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
      */
     @Override
     public void saveGroup(String userName, String groupName) {
+        // 分布式锁
         RLock lock = redissonClient.getLock(String.format(LOCK_GROUP_CREATE_KEY, userName));
         lock.lock();
         try {
@@ -67,13 +68,16 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
                     .eq(GroupDO::getUsername, userName)
                     .eq(GroupDO::getDelFlag, 0);
             List<GroupDO> groupDOList = baseMapper.selectList(queryWrapper);
+            // 已存在短链接分组数已经到了最大限制分组数
             if (CollUtil.isNotEmpty(groupDOList) && groupDOList.size() == groupMaxNum) {
                 throw new ClientException(String.format("已超出最大分组数：%d", groupMaxNum));
             }
+            // 判断gid分组标识在数据库中是否存在
             String gid;
             do {
                 gid = RandomGenerator.generateRandom();
-            } while (hasGid(userName, gid)); // 要是存在一直循环，直到不存在
+            } while (hasGid(userName, gid)); // 要是gid存在一直循环，直到不存在
+            //插入短链接分组数据
             GroupDO groupDO = GroupDO.builder()
                     .gid(gid)
                     .sortOrder(0)
