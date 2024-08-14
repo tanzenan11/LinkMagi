@@ -18,7 +18,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.nageoffer.shortlink.project.common.convention.exception.ClientException;
 import com.nageoffer.shortlink.project.common.convention.exception.ServiceException;
-import com.nageoffer.shortlink.project.common.enums.ValidDateTypeEnum;
+import com.nageoffer.shortlink.project.common.enums.VailDateTypeEnum;
 import com.nageoffer.shortlink.project.dao.entity.*;
 import com.nageoffer.shortlink.project.dao.mapper.*;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkBatchCreateReqDTO;
@@ -453,15 +453,17 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 .validDateType(requestParam.getValidDateType())
                 .validDate(requestParam.getValidDate())
                 .build();
-        if (Objects.equals(hasShortLinkDO.getGid(), requestParam.getGid())) {
+        if ((Objects.equals(hasShortLinkDO.getGid(), requestParam.getGid())) && Objects.equals(hasShortLinkDO.getOriginUrl(), requestParam.getOriginUrl())) {
+            // gid 和 原始短链接OriginUrl没有修改
             LambdaUpdateWrapper<ShortLinkDO> updateWrapper = Wrappers.lambdaUpdate(ShortLinkDO.class)
                     .eq(ShortLinkDO::getFullShortUrl, requestParam.getFullShortUrl())
                     .eq(ShortLinkDO::getGid, requestParam.getGid())
                     .eq(ShortLinkDO::getDelFlag, 0)
                     .eq(ShortLinkDO::getEnableStatus, 0)
-                    .set(Objects.equals(requestParam.getValidDate(), ValidDateTypeEnum.PERMANENT.getType()), ShortLinkDO::getValidDate, null);
+                    .set(Objects.equals(requestParam.getValidDate(), VailDateTypeEnum.PERMANENT.getType()), ShortLinkDO::getValidDate, null);
             baseMapper.update(shortLinkDO, updateWrapper);
         } else {
+            // gid和 原始短链接OriginUrl进行修改 需要删除原本得记录再次添加
             LambdaUpdateWrapper<ShortLinkDO> linkUpdateWrapper = Wrappers.lambdaUpdate(ShortLinkDO.class)
                     .eq(ShortLinkDO::getFullShortUrl, requestParam.getFullShortUrl())
                     .eq(ShortLinkDO::getGid, hasShortLinkDO.getGid())
@@ -470,6 +472,20 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .eq(ShortLinkDO::getEnableStatus, 0);
             baseMapper.delete(linkUpdateWrapper);
             baseMapper.insert(shortLinkDO);
+        }
+        // 修改完判断该链接是否以及可用
+        if (!Objects.equals(hasShortLinkDO.getValidDateType(), requestParam.getValidDateType())
+                || !Objects.equals(hasShortLinkDO.getValidDate(), requestParam.getValidDate())) {
+            // 当有效期类型和有效期时间发生改变删除redis短链接跳转前缀缓存
+            stringRedisTemplate.delete(String.format(GOTO_SHORT_LINK_KEY, requestParam.getFullShortUrl()));
+            // 过期时间修改为有效时间情况
+            // 如果数据库有效期时间已过期需要进行二次判断
+            if (hasShortLinkDO.getValidDate() != null && hasShortLinkDO.getValidDate().before(new Date())) {
+                // 请求修改的有效期类型为永久有效或者有效期没有过期 删除redis短链接空值跳转前缀缓存
+                if (Objects.equals(requestParam.getValidDateType(), VailDateTypeEnum.PERMANENT.getType()) || requestParam.getValidDate().after(new Date())) {
+                    stringRedisTemplate.delete(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, requestParam.getFullShortUrl()));
+                }
+            }
         }
 
     }

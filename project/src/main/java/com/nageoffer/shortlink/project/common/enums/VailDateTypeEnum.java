@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
  * 有效期类型
  */
 @RequiredArgsConstructor
-public enum ValidDateTypeEnum {
+public enum VailDateTypeEnum {
     /**
      * 永久有效
      */
