@@ -66,7 +66,7 @@ public class ShortLinkStatsSaveConsumer implements StreamListener<String, MapRec
         // 获取消息的 ID
         RecordId id = message.getId();
         if (!messageQueueIdempotentHandler.isMessageProcessed(id.toString())) { //判断该消息是否消费过
-            // 判断当前的这个消息流程是否执行完成
+            // 判断当前的这个消息流程是否执行完成 保证由于异常情况下未删除幂等标识或者未设置完成情况依旧保证幂等
             if (messageQueueIdempotentHandler.isAccomplish(id.toString())) {
                 return;
             }
