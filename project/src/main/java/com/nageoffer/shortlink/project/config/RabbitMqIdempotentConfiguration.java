@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 @ConditionalOnProperty(prefix = "message-queue", name = "select", havingValue = "mq")
-public class RabbitMQConfig {
+public class RabbitMqIdempotentConfiguration {
 
     @Bean
     public MessageConverter messageConverter() {
