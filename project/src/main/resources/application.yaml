@@ -25,7 +25,7 @@ spring:
     password: 123321 # 密码
 # 消息队列选择
 message-queue:
-  select: mq
+  select: redis
 
 short-link:
   domain:
