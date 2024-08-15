@@ -10,13 +10,17 @@ spring:
     redis:
       host: 127.0.0.1
       port: 6379
-      channel-topic:
-        short-link-stats: 'short_link:stats-stream'
-        short-link-stats-group: 'short_link:stats-stream:only-group'
+
   mvc:
     view:
       prefix: /templates/
       suffix: .html
+  rabbitmq:
+    host: 192.168.88.130 # 虚拟机IP
+    port: 5672 # 端口
+    virtual-host: /hmall # 虚拟主机
+    username: hmall # 用户名
+    password: 123321 # 密码
 
 short-link:
   domain:

@@ -1,4 +1,4 @@
-package com.nageoffer.shortlink.project.mq.consumer;
+package com.nageoffer.shortlink.project.mq.listener;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.date.Week;
@@ -17,26 +17,29 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RReadWriteLock;
 import org.redisson.api.RedissonClient;
+import org.springframework.amqp.core.ExchangeTypes;
+import org.springframework.amqp.rabbit.annotation.Exchange;
+import org.springframework.amqp.rabbit.annotation.Queue;
+import org.springframework.amqp.rabbit.annotation.QueueBinding;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.connection.stream.MapRecord;
-import org.springframework.data.redis.connection.stream.RecordId;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.stream.StreamListener;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 import static com.nageoffer.shortlink.project.common.constant.RedisKeyConstant.LOCK_GID_UPDATE_KEY;
 import static com.nageoffer.shortlink.project.common.constant.ShortLinkConstant.AMAP_REMOTE_URL;
 
 /**
- * 短链接监控状态保存消息队列消费者
+ * 短链接监控状态保存消息队列监听类
  */
-@Slf4j
 @Component
 @RequiredArgsConstructor
-public class ShortLinkStatsSaveConsumer implements StreamListener<String, MapRecord<String, String, String>> {
-
+@Slf4j
+public class ShortLinkStatsSaveListener {
     private final ShortLinkMapper shortLinkMapper;
     private final ShortLinkGotoMapper shortLinkGotoMapper;
     private final RedissonClient redissonClient;
@@ -49,37 +52,25 @@ public class ShortLinkStatsSaveConsumer implements StreamListener<String, MapRec
     private final LinkNetworkStatsMapper linkNetworkStatsMapper;
     private final LinkStatsTodayMapper linkStatsTodayMapper;
     private final DelayShortLinkStatsProducer delayShortLinkStatsProducer;
-    private final StringRedisTemplate stringRedisTemplate;
 
     // 高德用户key
     @Value("${short-link.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
 
-    @Override
-    public void onMessage(MapRecord<String, String, String> message) {
-        // 获取消息所属的 Stream 名称
-        String stream = message.getStream();
-        // 获取消息的 ID
-        RecordId id = message.getId();
-        // 获取fullShortUrl，gid以及ShortLinkStatsRecordDTO对象
-        Map<String, String> producerMap = message.getValue();
+    @RabbitListener(bindings = @QueueBinding(
+            value = @Queue(name = "shortLinkStatus.queue", durable = "true"),            // 配置队列名，并通过durable = "true"开启持久化
+            exchange = @Exchange(name = "shortLinkStatus.topic", type = ExchangeTypes.TOPIC), //配置交换机，并设置类型为topic
+            key = "shortLink.status"
+    ))
+    public void actualSaveShortLinkStats(Map<String, String> producerMap) {
+        // 解析统计记录 JSON 字符串为 ShortLinkStatsRecordDTO 对象
+        ShortLinkStatsRecordDTO statsRecord = JSON.parseObject(producerMap.get("statsRecord"), ShortLinkStatsRecordDTO.class);
         // 获取短链接的完整 URL
         String fullShortUrl = producerMap.get("fullShortUrl");
-
-        // 如果 fullShortUrl 不为空，则处理该消息
-        if (StrUtil.isNotBlank(fullShortUrl)) {
-            // 获取 gid（全局唯一标识）
-            String gid = producerMap.get("gid");
-            // 解析统计记录 JSON 字符串为 ShortLinkStatsRecordDTO 对象
-            ShortLinkStatsRecordDTO statsRecord = JSON.parseObject(producerMap.get("statsRecord"), ShortLinkStatsRecordDTO.class);
-            // 保存短链接统计信息
-            actualSaveShortLinkStats(fullShortUrl, gid, statsRecord);
-        }
-        // 删除已经处理的 Stream 消息 ，防止浪费内存
-        stringRedisTemplate.opsForStream().delete(Objects.requireNonNull(stream), id.getValue());
-    }
-
-    public void actualSaveShortLinkStats(String fullShortUrl, String gid, ShortLinkStatsRecordDTO statsRecord) {
+        // 如果 fullShortUrl 为空，则从统计记录中获取
+        fullShortUrl = Optional.ofNullable(fullShortUrl).orElse(statsRecord.getFullShortUrl());
+        // 获取 gid（全局唯一标识）
+        String gid = producerMap.get("gid");
         // 如果 fullShortUrl 为空，则从统计记录中获取
         fullShortUrl = Optional.ofNullable(fullShortUrl).orElse(statsRecord.getFullShortUrl());
         // 获取 Redis 中的读写锁
