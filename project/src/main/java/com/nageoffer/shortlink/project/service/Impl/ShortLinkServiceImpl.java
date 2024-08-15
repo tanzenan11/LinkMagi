@@ -25,6 +25,7 @@ import com.nageoffer.shortlink.project.dto.req.ShortLinkCreateReqDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkPageReqDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkUpdateReqDTO;
 import com.nageoffer.shortlink.project.dto.resp.*;
+import com.nageoffer.shortlink.project.mq.producer.ShortLinkStatsSaveProducer;
 import com.nageoffer.shortlink.project.service.LinkStatsTodayService;
 import com.nageoffer.shortlink.project.service.ShortLinkService;
 import com.nageoffer.shortlink.project.toolkit.HashUtil;
@@ -75,16 +76,20 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final LinkLocaleStatsMapper linkLocaleStatsMapper;
     private final LinkOsStatsMapper linkOsStatsMapper;
     private final LinkBrowserStatsMapper linkBrowserStatsMapper;
+    private final ShortLinkMapper shortLinkMapper;
     private final LinkAccessLogsMapper linkAccessLogsMapper;
     private final LinkDeviceStatsMapper linkDeviceStatsMapper;
     private final LinkNetworkStatsMapper linkNetworkStatsMapper;
     private final LinkStatsTodayMapper linkStatsTodayMapper;
     private final LinkStatsTodayService linkStatsTodayService;
+    private final ShortLinkStatsSaveProducer shortLinkStatsSaveProducer;
     private final GotoDomainWhiteListConfiguration gotoDomainWhiteListConfiguration;
     private final RabbitTemplate rabbitTemplate;
 
     @Value("${short-link.domain.default}")
     private String createShortLinkDefaultDomain;
+    @Value("${message-queue.select}")
+    private String messageQueueSelect;
 
     /**
      * 短链接跳转
@@ -536,11 +541,15 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         producerMap.put("fullShortUrl", fullShortUrl);
         producerMap.put("gid", gid);
         producerMap.put("statsRecord", JSON.toJSONString(statsRecord));
-        try {
-            // 发送RabbitMQ队列消息
-            rabbitTemplate.convertAndSend("shortLinkStatus.topic", "shortLink.status", producerMap);
-        } catch (Exception e) {
-            log.error("短链接统计失败！");
+        if(messageQueueSelect.equals("mq")){
+            try {
+                // 发送RabbitMQ队列消息
+                rabbitTemplate.convertAndSend("shortLinkStatus.topic", "shortLink.status", producerMap);
+            } catch (Exception e) {
+                log.error("短链接统计失败！");
+            }
+        }else if(messageQueueSelect.equals("redis")){
+            shortLinkStatsSaveProducer.send(producerMap);
         }
     }
 
