@@ -22,7 +22,10 @@ import org.springframework.amqp.rabbit.annotation.Exchange;
 import org.springframework.amqp.rabbit.annotation.Queue;
 import org.springframework.amqp.rabbit.annotation.QueueBinding;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -52,17 +55,38 @@ public class ShortLinkStatsSaveListener {
     private final LinkNetworkStatsMapper linkNetworkStatsMapper;
     private final LinkStatsTodayMapper linkStatsTodayMapper;
     private final DelayShortLinkStatsProducer delayShortLinkStatsProducer;
+    private final MessageIdsMapper messageIdsMapper; // 用于存储消息 ID
 
     // 高德用户key
     @Value("${short-link.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
+
+
+    /**
+     * 每两天清除一次消息表数据
+     */
+    @Scheduled(cron = "0 0 0 */2 * ?") // 每两天午夜执行一次
+    public void clearMessageIds() {
+        try {
+            messageIdsMapper.deleteAllMessageIds();
+            System.out.println("清除 message_ids 表的数据成功");
+        } catch (Exception e) {
+            e.printStackTrace();// 处理异常情况，例如记录日志
+        }
+    }
+
 
     @RabbitListener(bindings = @QueueBinding(
             value = @Queue(name = "shortLinkStatus.queue", durable = "true"),            // 配置队列名，并通过durable = "true"开启持久化
             exchange = @Exchange(name = "shortLinkStatus.topic", type = ExchangeTypes.TOPIC), //配置交换机，并设置类型为topic
             key = "shortLink.status"
     ))
-    public void actualSaveShortLinkStats(Map<String, String> producerMap) {
+    public void actualSaveShortLinkStats(Map<String, String> producerMap,@Header(AmqpHeaders.MESSAGE_ID) String messageId) {
+        // 检查数据库中是否已存在该消息 ID
+        if (messageIdsMapper.existsById(messageId)) {
+            // 如果消息 ID 已存在，则表示消息已处理过，忽略这次处理
+            return;
+        }
         // 解析统计记录 JSON 字符串为 ShortLinkStatsRecordDTO 对象
         ShortLinkStatsRecordDTO statsRecord = JSON.parseObject(producerMap.get("statsRecord"), ShortLinkStatsRecordDTO.class);
         // 获取短链接的完整 URL
@@ -190,6 +214,8 @@ public class ShortLinkStatsSaveListener {
                     .date(new Date())
                     .build();
             linkStatsTodayMapper.shortLinkTodayState(linkStatsTodayDO);
+            // 业务处理成功后，将消息 ID 保存到数据库
+            messageIdsMapper.saveMessageId(messageId);
         } catch (Throwable ex) {
             log.error("短链接访问量统计异常", ex);
         } finally {
