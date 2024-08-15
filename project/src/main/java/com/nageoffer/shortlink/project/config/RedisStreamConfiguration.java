@@ -4,6 +4,7 @@ package com.nageoffer.shortlink.project.config;
 import com.nageoffer.shortlink.project.mq.consumer.ShortLinkStatsSaveConsumer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -25,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Configuration
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "message-queue", name = "select", havingValue = "redis")
 public class RedisStreamConfiguration {
 
     // Redis 连接工厂，用于创建 Redis 连接
