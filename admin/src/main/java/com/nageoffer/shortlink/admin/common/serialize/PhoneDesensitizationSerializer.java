@@ -14,7 +14,7 @@ public class PhoneDesensitizationSerializer extends JsonSerializer<String> {
 
     @Override
     public void serialize(String phone, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
-        String phoneDesensitization = DesensitizedUtil.mobilePhone(phone);
+        String phoneDesensitization = DesensitizedUtil.mobilePhone(phone);  //利用hutool自带工具包进行脱敏
         jsonGenerator.writeString(phoneDesensitization);
     }
 }
