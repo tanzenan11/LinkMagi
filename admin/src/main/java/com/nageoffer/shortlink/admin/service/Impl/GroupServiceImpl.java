@@ -14,7 +14,7 @@ import com.nageoffer.shortlink.admin.dao.mapper.GroupMapper;
 import com.nageoffer.shortlink.admin.dto.req.ShortLinkGroupSortReqDTO;
 import com.nageoffer.shortlink.admin.dto.req.ShortLinkGroupUpdateReqDTO;
 import com.nageoffer.shortlink.admin.dto.resp.ShortLinkGroupRespDTO;
-import com.nageoffer.shortlink.admin.remote.dto.ShortLinkRemoteService;
+import com.nageoffer.shortlink.admin.remote.ShortLinkActualRemoteService;
 import com.nageoffer.shortlink.admin.remote.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import com.nageoffer.shortlink.admin.service.GroupService;
 import com.nageoffer.shortlink.admin.toolkit.RandomGenerator;
@@ -39,8 +39,7 @@ import static com.nageoffer.shortlink.admin.common.constant.RedisCacheConstant.L
 @RequiredArgsConstructor
 public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implements GroupService {
 
-    ShortLinkRemoteService shortLinkRemoteService = new ShortLinkRemoteService() {};
-
+    private final ShortLinkActualRemoteService shortLinkActualRemoteService;
     private final RedissonClient redissonClient;
 
     @Value("${short-link.group.max-num}")
@@ -106,7 +105,7 @@ public class GroupServiceImpl extends ServiceImpl<GroupMapper, GroupDO> implemen
         // 将查询到的分组列表转换为响应 DTO 列表
         List<ShortLinkGroupRespDTO> shortLinkGroupRespDTOList = BeanUtil.copyToList(groupDOList, ShortLinkGroupRespDTO.class);
         // 调用远程服务，获取每个分组中短链接的计数信息
-        Result<List<ShortLinkGroupCountQueryRespDTO>> listResult = shortLinkRemoteService
+        Result<List<ShortLinkGroupCountQueryRespDTO>> listResult = shortLinkActualRemoteService
                 .listGroupShortLinkCount(groupDOList.stream().map(GroupDO::getGid).toList());
         // 遍历每个分组的响应 DTO，并将对应的短链接计数信息填充到 DTO 中
         shortLinkGroupRespDTOList.forEach(each -> {

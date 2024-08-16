@@ -63,6 +63,24 @@
             <version>${easyexcel.version}</version>
         </dependency>
 
+        <!-- Nacos 服务 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
+        <!-- Spring Cloud OpenFeign -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+
+        <!-- Spring Cloud LoadBalancer 依赖，OpenFeign 不再提供默认的负载均衡器，需要手动添加 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-loadbalancer</artifactId>
+        </dependency>
+
     </dependencies>
     <build>
         <finalName>${project.artifactId</finalName>
