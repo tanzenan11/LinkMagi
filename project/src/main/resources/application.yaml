@@ -20,6 +20,7 @@ spring:
     virtual-host: /hmall # 虚拟主机
     username: hmall # 用户名
     password: 123321 # 密码
+
 # 消息队列选择
 message-queue:
   select: redis
