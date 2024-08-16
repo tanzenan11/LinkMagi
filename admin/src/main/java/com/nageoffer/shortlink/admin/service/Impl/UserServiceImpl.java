@@ -25,6 +25,7 @@ import org.redisson.api.RBloomFilter;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -33,8 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.nageoffer.shortlink.admin.common.constant.RedisCacheConstant.LOCK_USER_REGISTER_KEY;
 import static com.nageoffer.shortlink.admin.common.constant.RedisCacheConstant.USER_LOGIN_KEY;
-import static com.nageoffer.shortlink.admin.common.enums.UserErrorCodeEnum.USER_EXIST;
-import static com.nageoffer.shortlink.admin.common.enums.UserErrorCodeEnum.USER_NAME_EXIST;
+import static com.nageoffer.shortlink.admin.common.enums.UserErrorCodeEnum.*;
 
 /**
  * <p>
@@ -79,7 +79,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
             throw new ClientException(UserErrorCodeEnum.USER_NAME_EXIST);
         }
         RLock lock = redissonClient.getLock(LOCK_USER_REGISTER_KEY + requestParam.getUsername());
-        if (!lock.tryLock()) {
+        if (!lock.tryLock()) { //没有获取到锁线程冲突返回用户名已存在，以为获取到锁的线程大概率不会出错
             throw new ClientException(USER_NAME_EXIST);
         }
         try {
@@ -89,7 +89,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
             }
             userRegisterCachePenetrationBloomFilter.add(requestParam.getUsername());
             groupService.saveGroup(requestParam.getUsername(), "默认分组");
-        } catch (ClientException e) {
+        } catch (DuplicateKeyException e) { //拦截唯一索引冲突
             throw new ClientException(USER_EXIST);
         } finally {
             lock.unlock();
