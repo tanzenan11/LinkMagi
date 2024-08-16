@@ -3,7 +3,6 @@ package com.nageoffer.shortlink.project.config;
 
 import com.nageoffer.shortlink.project.mq.consumer.ShortLinkStatsSaveConsumer;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +20,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.nageoffer.shortlink.project.common.constant.RedisKeyConstant.SHORT_LINK_STATS_STREAM_GROUP_KEY;
+import static com.nageoffer.shortlink.project.common.constant.RedisKeyConstant.SHORT_LINK_STATS_STREAM_TOPIC_KEY;
+
 /**
  * Redis Stream 消息队列配置
  */
@@ -35,13 +37,6 @@ public class RedisStreamConfiguration {
     // 短链接统计数据的消费处理器
     private final ShortLinkStatsSaveConsumer shortLinkStatsSaveConsumer;
 
-    // 从配置文件中获取 Redis 频道的名称 相当于队列的key
-    @Value("${spring.data.redis.channel-topic.short-link-stats}")
-    private String topic;
-
-    // 从配置文件中获取 Redis 消费者组的名称
-    @Value("${spring.data.redis.channel-topic.short-link-stats-group}")
-    private String group;
 
     // 创建异步处理 Stream 消息的线程池
     @Bean
@@ -91,8 +86,8 @@ public class RedisStreamConfiguration {
 
         // 配置自动确认消费，指定消费者组、消费者名称和消费处理器
         streamMessageListenerContainer.receiveAutoAck(
-                Consumer.from(group, "stats-consumer"),  // 消费者组和消费者名称
-                StreamOffset.create(topic, ReadOffset.lastConsumed()),  // 指定从上次消费的位置继续读取
+                Consumer.from(SHORT_LINK_STATS_STREAM_GROUP_KEY, "stats-consumer"),  // 消费者组和消费者名称
+                StreamOffset.create(SHORT_LINK_STATS_STREAM_TOPIC_KEY, ReadOffset.lastConsumed()),  // 指定从上次消费的位置继续读取
                 shortLinkStatsSaveConsumer  // 消息处理逻辑
         );
 
