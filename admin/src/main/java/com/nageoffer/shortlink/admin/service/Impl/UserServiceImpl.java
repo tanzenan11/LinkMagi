@@ -1,8 +1,9 @@
 package com.nageoffer.shortlink.admin.service.Impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.UUID;
+import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -27,9 +28,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -115,17 +113,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
      */
     @Override
     public UserLoginRespDTO login(UserLoginReqDTO requestParam) {
-        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(USER_LOGIN_KEY + requestParam.getUsername()))) {
-            throw new ClientException("用户已登录");
-        }
-        //验证用户是否存在数据库
         LambdaQueryWrapper<UserDO> queryWrapper = Wrappers.lambdaQuery(UserDO.class)
                 .eq(UserDO::getUsername, requestParam.getUsername())
                 .eq(UserDO::getPassword, requestParam.getPassword())
                 .eq(UserDO::getDelFlag, 0);
         UserDO userDO = baseMapper.selectOne(queryWrapper);
         if (userDO == null) {
-            throw new ClientException(UserErrorCodeEnum.USER_NULL);
+            throw new ClientException("用户不存在");
+        }
+        Map<Object, Object> hasLoginMap = stringRedisTemplate.opsForHash().entries(USER_LOGIN_KEY + requestParam.getUsername());
+        if (CollUtil.isNotEmpty(hasLoginMap)) {
+            stringRedisTemplate.expire(USER_LOGIN_KEY + requestParam.getUsername(), 30L, TimeUnit.DAYS);
+            String token = hasLoginMap.keySet().stream()
+                    .findFirst()
+                    .map(Object::toString)
+                    .orElseThrow(() -> new ClientException("用户登录错误"));
+            return new UserLoginRespDTO(token);
         }
 
         /**
@@ -135,30 +138,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
          *  Key：token标识
          *  Val：JSON 字符串（用户信息）
          */
-        //解决用户重复登录，将用户信息存入redis
-        String token = UUID.randomUUID().toString(true);
-        // 将 UserDO 对象转换为 Map<String, Object>
-        // 定义时间格式
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        // 将 UserDO 对象转换为 Map<String, Object>
-        Map<String, Object> userMap = BeanUtil.beanToMap(userDO, new HashMap<>(),
-                CopyOptions.create()
-                        .setIgnoreNullValue(true) // 忽略 null 值
-                        .setFieldValueEditor((fieldName, fieldValue) -> {
-                            if (fieldValue instanceof Date) {
-                                // 将 Date 转换为字符串
-                                return dateFormat.format(fieldValue);
-                            } else if (fieldValue instanceof Long || fieldValue instanceof Integer) {
-                                // 将 Long 和 Integer 转换为字符串
-                                return fieldValue.toString();
-                            }
-                            return fieldValue;
-                        }));
-        // 7.3.存储
-        String tokenKey = USER_LOGIN_KEY + token;
-        stringRedisTemplate.opsForHash().putAll(tokenKey, userMap);
-        stringRedisTemplate.expire(tokenKey, 30L, TimeUnit.DAYS);
-        return new UserLoginRespDTO(token);
+        String uuid = UUID.randomUUID().toString();
+        stringRedisTemplate.opsForHash().put(USER_LOGIN_KEY + requestParam.getUsername(), uuid, JSON.toJSONString(userDO));
+        stringRedisTemplate.expire(USER_LOGIN_KEY + requestParam.getUsername(), 30L, TimeUnit.MINUTES);
+        return new UserLoginRespDTO(uuid);
     }
 
     /**
