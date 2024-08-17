@@ -16,6 +16,7 @@ import static com.nageoffer.shortlink.project.common.constant.RedisKeyConstant.D
  * 延迟消费短链接统计发送者
  */
 @Component
+@Deprecated
 @RequiredArgsConstructor
 public class DelayShortLinkStatsProducer {
 
@@ -24,7 +25,6 @@ public class DelayShortLinkStatsProducer {
     /**
      * 发送延迟消费短链接统计
      *
-     * 该方法用于将短链接统计记录发送到延迟队列中，在指定的延迟时间后进行消费处理。
      *
      * @param statsRecord 短链接统计实体参数，包含需要延迟处理的统计数据。
      */
