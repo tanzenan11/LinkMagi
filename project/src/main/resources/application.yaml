@@ -28,8 +28,9 @@ spring:
       server-addr: localhost:8848 #nacos服务地址
 
 # 消息队列选择
+# 可选消息队列 rabbit:RabbitMQ rocket:RocketMQ redis:RedisStream
 message-queue:
-  select: mq
+  select: rabbit
 
 short-link:
   domain:
@@ -51,4 +52,15 @@ mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   mapper-locations: classpath:mapper/*.xml
+
+rocketmq:
+  name-server: common-rocketmq-dev.magestack.cn:9876
+  producer:
+    group: short-link_project-service_stats-save_pg_tzn
+    topic: short-link_project-service_topic_tzn
+    send-message-timeout: 2000
+    retry-times-when-send-failed: 1
+    retry-times-when-send-async-failed: 1
+  consumer:
+    group: short-link_project-service_stats-save_cg_tzn
 

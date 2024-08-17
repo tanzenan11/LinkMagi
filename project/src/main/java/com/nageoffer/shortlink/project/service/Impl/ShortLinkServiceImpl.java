@@ -25,7 +25,8 @@ import com.nageoffer.shortlink.project.dto.req.ShortLinkCreateReqDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkPageReqDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkUpdateReqDTO;
 import com.nageoffer.shortlink.project.dto.resp.*;
-import com.nageoffer.shortlink.project.mq.producer.ShortLinkStatsSaveProducer;
+import com.nageoffer.shortlink.project.mq.producer.ShortLinkStatsSaveRocketProducer;
+import com.nageoffer.shortlink.project.mq.producer.ShortLinkStatsSaveStreamProducer;
 import com.nageoffer.shortlink.project.service.LinkStatsTodayService;
 import com.nageoffer.shortlink.project.service.ShortLinkService;
 import com.nageoffer.shortlink.project.toolkit.HashUtil;
@@ -76,13 +77,13 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final LinkLocaleStatsMapper linkLocaleStatsMapper;
     private final LinkOsStatsMapper linkOsStatsMapper;
     private final LinkBrowserStatsMapper linkBrowserStatsMapper;
-    private final ShortLinkMapper shortLinkMapper;
     private final LinkAccessLogsMapper linkAccessLogsMapper;
     private final LinkDeviceStatsMapper linkDeviceStatsMapper;
     private final LinkNetworkStatsMapper linkNetworkStatsMapper;
     private final LinkStatsTodayMapper linkStatsTodayMapper;
     private final LinkStatsTodayService linkStatsTodayService;
-    private final ShortLinkStatsSaveProducer shortLinkStatsSaveProducer;
+    private final ShortLinkStatsSaveStreamProducer shortLinkStatsSaveStreamProducer;
+    private final ShortLinkStatsSaveRocketProducer shortLinkStatsSaveRocketProducer;
     private final GotoDomainWhiteListConfiguration gotoDomainWhiteListConfiguration;
     private final RabbitTemplate rabbitTemplate;
 
@@ -540,7 +541,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         producerMap.put("fullShortUrl", fullShortUrl);
         producerMap.put("gid", gid);
         producerMap.put("statsRecord", JSON.toJSONString(statsRecord));
-        if(messageQueueSelect.equals("mq")){
+        if(messageQueueSelect.equals("rabbit")){
             try {
                 // 发送RabbitMQ队列消息
                 rabbitTemplate.convertAndSend("shortLinkStatus.topic", "shortLink.status", producerMap);
@@ -548,7 +549,9 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 log.error("短链接统计失败！");
             }
         }else if(messageQueueSelect.equals("redis")){
-            shortLinkStatsSaveProducer.send(producerMap);
+            shortLinkStatsSaveStreamProducer.send(producerMap);
+        } else if (messageQueueSelect.equals("rocket")) {
+            shortLinkStatsSaveRocketProducer.send(producerMap);
         }
     }
 

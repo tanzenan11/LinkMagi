@@ -1,4 +1,4 @@
-package com.nageoffer.shortlink.project.mq.listener;
+package com.nageoffer.shortlink.project.mq.consumer;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.date.Week;
@@ -9,23 +9,35 @@ import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.nageoffer.shortlink.project.common.convention.exception.ServiceException;
-import com.nageoffer.shortlink.project.dao.entity.*;
-import com.nageoffer.shortlink.project.dao.mapper.*;
+import com.nageoffer.shortlink.project.dao.entity.LinkAccessLogsDO;
+import com.nageoffer.shortlink.project.dao.entity.LinkAccessStatsDO;
+import com.nageoffer.shortlink.project.dao.entity.LinkBrowserStatsDO;
+import com.nageoffer.shortlink.project.dao.entity.LinkDeviceStatsDO;
+import com.nageoffer.shortlink.project.dao.entity.LinkLocaleStatsDO;
+import com.nageoffer.shortlink.project.dao.entity.LinkNetworkStatsDO;
+import com.nageoffer.shortlink.project.dao.entity.LinkOsStatsDO;
+import com.nageoffer.shortlink.project.dao.entity.LinkStatsTodayDO;
+import com.nageoffer.shortlink.project.dao.entity.ShortLinkGotoDO;
+import com.nageoffer.shortlink.project.dao.mapper.LinkAccessLogsMapper;
+import com.nageoffer.shortlink.project.dao.mapper.LinkAccessStatsMapper;
+import com.nageoffer.shortlink.project.dao.mapper.LinkBrowserStatsMapper;
+import com.nageoffer.shortlink.project.dao.mapper.LinkDeviceStatsMapper;
+import com.nageoffer.shortlink.project.dao.mapper.LinkLocaleStatsMapper;
+import com.nageoffer.shortlink.project.dao.mapper.LinkNetworkStatsMapper;
+import com.nageoffer.shortlink.project.dao.mapper.LinkOsStatsMapper;
+import com.nageoffer.shortlink.project.dao.mapper.LinkStatsTodayMapper;
+import com.nageoffer.shortlink.project.dao.mapper.ShortLinkGotoMapper;
+import com.nageoffer.shortlink.project.dao.mapper.ShortLinkMapper;
 import com.nageoffer.shortlink.project.dto.biz.ShortLinkStatsRecordDTO;
 import com.nageoffer.shortlink.project.mq.idempotent.MessageQueueIdempotentHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
+import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.redisson.api.RLock;
 import org.redisson.api.RReadWriteLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.amqp.core.ExchangeTypes;
-import org.springframework.amqp.rabbit.annotation.Exchange;
-import org.springframework.amqp.rabbit.annotation.Queue;
-import org.springframework.amqp.rabbit.annotation.QueueBinding;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -37,12 +49,17 @@ import static com.nageoffer.shortlink.project.common.constant.RedisKeyConstant.L
 import static com.nageoffer.shortlink.project.common.constant.ShortLinkConstant.AMAP_REMOTE_URL;
 
 /**
- * 短链接监控状态保存消息队列Rabbit MQ 监听类
+ * 短链接监控状态保存消息队列Rocket MQ消费者
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
-@Slf4j
-public class ShortLinkStatsSaveListener {
+@RocketMQMessageListener(
+        topic = "${rocketmq.producer.topic}",
+        consumerGroup = "${rocketmq.consumer.group}"
+)
+public class ShortLinkStatsSaveRocketConsumer implements RocketMQListener<Map<String, String>> {
+
     private final ShortLinkMapper shortLinkMapper;
     private final ShortLinkGotoMapper shortLinkGotoMapper;
     private final RedissonClient redissonClient;
@@ -56,20 +73,16 @@ public class ShortLinkStatsSaveListener {
     private final LinkStatsTodayMapper linkStatsTodayMapper;
     private final MessageQueueIdempotentHandler messageQueueIdempotentHandler;
 
-    // 高德用户key
+    // 高德id
     @Value("${short-link.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
 
-
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "shortLinkStatus.queue", durable = "true"),            // 配置队列名，并通过durable = "true"开启持久化
-            exchange = @Exchange(name = "shortLinkStatus.topic", type = ExchangeTypes.TOPIC), //配置交换机，并设置类型为topic
-            key = "shortLink.status"
-    ))
-    public void onMessage(Map<String, String> producerMap,@Header(AmqpHeaders.MESSAGE_ID) String messageId) {
-        if (!messageQueueIdempotentHandler.isMessageProcessed(messageId)) {
+    @Override
+    public void onMessage(Map<String, String> producerMap) {
+        String keys = producerMap.get("keys");
+        if (!messageQueueIdempotentHandler.isMessageProcessed(keys)) {
             // 判断当前的这个消息流程是否执行完成
-            if (messageQueueIdempotentHandler.isAccomplish(messageId)) {
+            if (messageQueueIdempotentHandler.isAccomplish(keys)) {
                 return;
             }
             throw new ServiceException("消息未完成流程，需要消息队列重试");
@@ -85,7 +98,7 @@ public class ShortLinkStatsSaveListener {
             log.error("记录短链接监控消费异常", ex);
             throw ex;
         }
-        messageQueueIdempotentHandler.setAccomplish(messageId);
+        messageQueueIdempotentHandler.setAccomplish(keys);
     }
 
     public void actualSaveShortLinkStats(String fullShortUrl, String gid, ShortLinkStatsRecordDTO statsRecord) {

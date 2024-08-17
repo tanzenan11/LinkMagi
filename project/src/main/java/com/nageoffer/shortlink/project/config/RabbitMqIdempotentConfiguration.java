@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
  * SpringAMQP的MessageConverter生成唯一消息ID保证幂等性
  */
 @Configuration
-@ConditionalOnProperty(prefix = "message-queue", name = "select", havingValue = "mq")
+@ConditionalOnProperty(prefix = "message-queue", name = "select", havingValue = "rabbit")
 public class RabbitMqIdempotentConfiguration {
 
     /**

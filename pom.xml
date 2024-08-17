@@ -32,6 +32,8 @@
         <maven.compiler.target>17</maven.compiler.target>
         <jsoup.version>1.15.3</jsoup.version>
         <easyexcel.version>3.1.3</easyexcel.version>
+        <rocketmq-spring-boot-starter.version>2.2.3</rocketmq-spring-boot-starter.version>
+        <spotless-maven-plugin.version>2.22.1</spotless-maven-plugin.version>
     </properties>
 
     <dependencies>
@@ -113,6 +115,12 @@
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
                 <version>${guava.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-spring-boot-starter</artifactId>
+                <version>${rocketmq-spring-boot-starter.version}</version>
             </dependency>
 
         </dependencies>
