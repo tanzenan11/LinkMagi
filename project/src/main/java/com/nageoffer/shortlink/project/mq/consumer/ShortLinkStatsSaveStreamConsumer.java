@@ -73,18 +73,10 @@ public class ShortLinkStatsSaveStreamConsumer implements StreamListener<String, 
         try {
             // 获取fullShortUrl，gid以及ShortLinkStatsRecordDTO对象
             Map<String, String> producerMap = message.getValue();
-            // 获取短链接的完整 URL
-            String fullShortUrl = producerMap.get("fullShortUrl");
-
-            // 如果 fullShortUrl 不为空，则处理该消息
-            if (StrUtil.isNotBlank(fullShortUrl)) {
-                // 获取 gid（全局唯一标识）
-                String gid = producerMap.get("gid");
-                // 解析统计记录 JSON 字符串为 ShortLinkStatsRecordDTO 对象
-                ShortLinkStatsRecordDTO statsRecord = JSON.parseObject(producerMap.get("statsRecord"), ShortLinkStatsRecordDTO.class);
-                // 保存短链接统计信息
-                actualSaveShortLinkStats(fullShortUrl, gid, statsRecord);
-            }
+            // 获取短链接统计请求对象
+            ShortLinkStatsRecordDTO statsRecord = JSON.parseObject(producerMap.get("statsRecord"), ShortLinkStatsRecordDTO.class);
+            // 进行监控统计保存短链接统计信息
+            actualSaveShortLinkStats(statsRecord);
             // 删除已经处理的 Stream 消息 ，防止浪费内存
             stringRedisTemplate.opsForStream().delete(Objects.requireNonNull(stream), id.getValue());
         }catch (Throwable ex) {
@@ -102,21 +94,17 @@ public class ShortLinkStatsSaveStreamConsumer implements StreamListener<String, 
 
     }
 
-    public void actualSaveShortLinkStats(String fullShortUrl, String gid, ShortLinkStatsRecordDTO statsRecord) {
-        // 如果 fullShortUrl 为空，则从统计记录中获取
-        fullShortUrl = Optional.ofNullable(fullShortUrl).orElse(statsRecord.getFullShortUrl());
+    public void actualSaveShortLinkStats(ShortLinkStatsRecordDTO statsRecord) {
+        String fullShortUrl = statsRecord.getFullShortUrl();
         // 获取 Redis 中的读写锁
         RReadWriteLock readWriteLock = redissonClient.getReadWriteLock(String.format(LOCK_GID_UPDATE_KEY, fullShortUrl));
         RLock rLock = readWriteLock.readLock();
         rLock.lock();
         try {
-            // 如果 gid 为空，则从数据库中获取
-            if (StrUtil.isBlank(gid)) {
-                LambdaQueryWrapper<ShortLinkGotoDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
-                        .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
-                ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(queryWrapper);
-                gid = shortLinkGotoDO.getGid();
-            }
+            LambdaQueryWrapper<ShortLinkGotoDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
+                    .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
+            ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(queryWrapper);
+            String gid = shortLinkGotoDO.getGid();
             // 获取当前小时和星期几
             int hour = DateUtil.hour(new Date(), true);
             Week week = DateUtil.dayOfWeekEnum(new Date());

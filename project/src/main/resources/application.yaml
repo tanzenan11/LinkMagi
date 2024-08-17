@@ -30,7 +30,7 @@ spring:
 # 消息队列选择
 # 可选消息队列 rabbit:RabbitMQ rocket:RocketMQ redis:RedisStream
 message-queue:
-  select: rabbit
+  select: rocket
 
 short-link:
   domain:

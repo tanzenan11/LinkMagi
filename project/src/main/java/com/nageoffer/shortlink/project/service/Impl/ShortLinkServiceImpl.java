@@ -115,8 +115,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         //获取到原始链接
         if (StrUtil.isNotBlank(originalLink)) {
             //缓存存在直接重定向到原始网站链接
-            ShortLinkStatsRecordDTO statsRecord = buildLinkStatsRecordAndSetUser(fullShortUrl, request, response);
-            shortLinkStats(fullShortUrl, null, statsRecord);// 统计pv,uv,uip
+            shortLinkStats(buildLinkStatsRecordAndSetUser(fullShortUrl, request, response));// 统计pv,uv,uip
             ((HttpServletResponse) response).sendRedirect(originalLink);
             return;
         }
@@ -141,8 +140,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             // 双重判定锁，对缓存再次判断，防止多线程环境下多次查询数据库
             originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl));
             if (StrUtil.isNotBlank(originalLink)) {
-                ShortLinkStatsRecordDTO statsRecord = buildLinkStatsRecordAndSetUser(fullShortUrl, request, response);
-                shortLinkStats(fullShortUrl, null, statsRecord);// 统计pv,uv,uip
+                shortLinkStats(buildLinkStatsRecordAndSetUser(fullShortUrl, request, response));// 统计pv,uv,uip
                 ((HttpServletResponse) response).sendRedirect(originalLink);
                 return;
             }
@@ -177,8 +175,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     LinkUtil.getLinkCacheValidTime(shortLinkDO.getValidDate()), TimeUnit.MILLISECONDS
             );
             // 统计对应pv,uv,uip 访问量，独立访客数以及访问独立ip数
-            ShortLinkStatsRecordDTO statsRecord = buildLinkStatsRecordAndSetUser(fullShortUrl, request, response);
-            shortLinkStats(fullShortUrl, shortLinkDO.getGid(), statsRecord);
+            shortLinkStats(buildLinkStatsRecordAndSetUser(fullShortUrl, request, response));// 统计pv,uv,uip
             ((HttpServletResponse) response).sendRedirect(shortLinkDO.getOriginUrl());
         }finally {
             //释放锁
@@ -464,10 +461,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
      * 短链接统计
      */
     @Override
-    public void shortLinkStats(String fullShortUrl, String gid, ShortLinkStatsRecordDTO statsRecord) {
+    public void shortLinkStats(ShortLinkStatsRecordDTO statsRecord) {
         Map<String, String> producerMap = new HashMap<>();
-        producerMap.put("fullShortUrl", fullShortUrl);
-        producerMap.put("gid", gid);
         producerMap.put("statsRecord", JSON.toJSONString(statsRecord));
         if(messageQueueSelect.equals("rabbit")){
             try {
