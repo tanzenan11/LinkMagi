@@ -549,9 +549,19 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 log.error("短链接统计失败！");
             }
         }else if(messageQueueSelect.equals("redis")){
-            shortLinkStatsSaveStreamProducer.send(producerMap);
+            try {
+                // 发送RedisStream队列消息
+                shortLinkStatsSaveStreamProducer.send(producerMap);
+            } catch (Exception e) {
+                log.error("短链接统计失败！");
+            }
         } else if (messageQueueSelect.equals("rocket")) {
-            shortLinkStatsSaveRocketProducer.send(producerMap);
+            try {
+                // 发送RocketMQ队列消息
+                shortLinkStatsSaveRocketProducer.send(producerMap);
+            } catch (Exception e) {
+                log.error("短链接统计失败！");
+            }
         }
     }
 
