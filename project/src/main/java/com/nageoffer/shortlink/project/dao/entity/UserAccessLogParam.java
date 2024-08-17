@@ -37,4 +37,11 @@ public class UserAccessLogParam {
      * 用户集合
      */
     private List<String> userAccessLogsList;
+
+    /**
+     * 启用标识 0：启用 1：未启用
+     */
+    private Integer enableStatus;
+
+
 }
