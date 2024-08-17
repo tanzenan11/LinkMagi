@@ -89,8 +89,12 @@ public class ShortLinkStatsSaveStreamConsumer implements StreamListener<String, 
             stringRedisTemplate.opsForStream().delete(Objects.requireNonNull(stream), id.getValue());
         }catch (Throwable ex) {
             // 某某某情况宕机了，删除幂等标识
-            messageQueueIdempotentHandler.delMessageProcessed(id.toString());
             log.error("记录短链接监控消费异常", ex);
+            try {
+                messageQueueIdempotentHandler.delMessageProcessed(id.toString());
+            }catch (Throwable remoteEx){
+                log.error("删除幂等标识错误", remoteEx);
+            }
             throw ex;
         }
         // 设置消息流程执行完成

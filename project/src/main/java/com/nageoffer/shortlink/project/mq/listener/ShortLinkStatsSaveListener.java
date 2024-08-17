@@ -83,6 +83,11 @@ public class ShortLinkStatsSaveListener {
             }
         } catch (Throwable ex) {
             log.error("记录短链接监控消费异常", ex);
+            try {
+                messageQueueIdempotentHandler.delMessageProcessed(messageId);
+            }catch (Throwable remoteEx){
+                log.error("删除幂等标识错误", remoteEx);
+            }
             throw ex;
         }
         messageQueueIdempotentHandler.setAccomplish(messageId);
