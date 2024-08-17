@@ -8,9 +8,11 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.nageoffer.shortlink.project.common.convention.exception.ServiceException;
 import com.nageoffer.shortlink.project.dao.entity.*;
 import com.nageoffer.shortlink.project.dao.mapper.*;
 import com.nageoffer.shortlink.project.dto.biz.ShortLinkStatsRecordDTO;
+import com.nageoffer.shortlink.project.mq.idempotent.MessageQueueIdempotentHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -24,7 +26,6 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -53,25 +54,11 @@ public class ShortLinkStatsSaveListener {
     private final LinkDeviceStatsMapper linkDeviceStatsMapper;
     private final LinkNetworkStatsMapper linkNetworkStatsMapper;
     private final LinkStatsTodayMapper linkStatsTodayMapper;
-    private final MessageIdsMapper messageIdsMapper; // 用于存储消息 ID
+    private final MessageQueueIdempotentHandler messageQueueIdempotentHandler;
 
     // 高德用户key
     @Value("${short-link.stats.locale.amap-key}")
     private String statsLocaleAmapKey;
-
-
-    /**
-     * 每两天清除一次消息表数据
-     */
-    @Scheduled(cron = "0 0 0 */2 * ?") // 每两天午夜执行一次
-    public void clearMessageIds() {
-        try {
-            messageIdsMapper.deleteAllMessageIds();
-            System.out.println("清除 message_ids 表的数据成功");
-        } catch (Exception e) {
-            e.printStackTrace();// 处理异常情况，例如记录日志
-        }
-    }
 
 
     @RabbitListener(bindings = @QueueBinding(
@@ -80,10 +67,12 @@ public class ShortLinkStatsSaveListener {
             key = "shortLink.status"
     ))
     public void actualSaveShortLinkStats(Map<String, String> producerMap,@Header(AmqpHeaders.MESSAGE_ID) String messageId) {
-        // 检查数据库中是否已存在该消息 ID
-        if (messageIdsMapper.existsById(messageId)) {
-            // 如果消息 ID 已存在，则表示消息已处理过，忽略这次处理
-            return;
+        if (!messageQueueIdempotentHandler.isMessageProcessed(messageId)) { //判断该消息是否消费过
+            // 判断当前的这个消息流程是否执行完成 保证由于异常情况下未删除幂等标识或者未设置完成情况依旧保证幂等
+            if (messageQueueIdempotentHandler.isAccomplish(messageId)) {
+                return;
+            }
+            throw new ServiceException("消息未完成流程，需要消息队列重试");
         }
         // 解析统计记录 JSON 字符串为 ShortLinkStatsRecordDTO 对象
         ShortLinkStatsRecordDTO statsRecord = JSON.parseObject(producerMap.get("statsRecord"), ShortLinkStatsRecordDTO.class);
@@ -208,10 +197,13 @@ public class ShortLinkStatsSaveListener {
                     .date(new Date())
                     .build();
             linkStatsTodayMapper.shortLinkTodayState(linkStatsTodayDO);
-            // 业务处理成功后，将消息 ID 保存到数据库
-            messageIdsMapper.saveMessageId(messageId);
+            // 设置消息流程执行完成
+            messageQueueIdempotentHandler.setAccomplish(messageId);
         } catch (Throwable ex) {
-            log.error("短链接访问量统计异常", ex);
+            // 某某某情况宕机了，删除幂等标识
+            messageQueueIdempotentHandler.delMessageProcessed(messageId);
+            log.error("记录短链接监控消费异常", ex);
+            throw ex;
         } finally {
             rLock.unlock();
         }

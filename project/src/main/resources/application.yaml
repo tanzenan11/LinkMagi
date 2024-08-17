@@ -29,7 +29,7 @@ spring:
 
 # 消息队列选择
 message-queue:
-  select: redis
+  select: mq
 
 short-link:
   domain:
