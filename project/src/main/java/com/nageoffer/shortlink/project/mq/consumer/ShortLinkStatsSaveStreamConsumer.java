@@ -32,12 +32,12 @@ import static com.nageoffer.shortlink.project.common.constant.RedisKeyConstant.L
 import static com.nageoffer.shortlink.project.common.constant.ShortLinkConstant.AMAP_REMOTE_URL;
 
 /**
- * 短链接监控状态保存消息队列消费者
+ * 短链接监控状态保存消息队列Redis Stream消费者
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class ShortLinkStatsSaveConsumer implements StreamListener<String, MapRecord<String, String, String>> {
+public class ShortLinkStatsSaveStreamConsumer implements StreamListener<String, MapRecord<String, String, String>> {
 
     private final ShortLinkMapper shortLinkMapper;
     private final ShortLinkGotoMapper shortLinkGotoMapper;

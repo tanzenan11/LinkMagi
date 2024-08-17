@@ -1,7 +1,7 @@
 package com.nageoffer.shortlink.project.config;
 
 
-import com.nageoffer.shortlink.project.mq.consumer.ShortLinkStatsSaveConsumer;
+import com.nageoffer.shortlink.project.mq.consumer.ShortLinkStatsSaveStreamConsumer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -35,7 +35,7 @@ public class RedisStreamConfiguration {
     private final RedisConnectionFactory redisConnectionFactory;
 
     // 短链接统计数据的消费处理器
-    private final ShortLinkStatsSaveConsumer shortLinkStatsSaveConsumer;
+    private final ShortLinkStatsSaveStreamConsumer shortLinkStatsSaveStreamConsumer;
 
 
     // 创建异步处理 Stream 消息的线程池
@@ -88,7 +88,7 @@ public class RedisStreamConfiguration {
         streamMessageListenerContainer.receiveAutoAck(
                 Consumer.from(SHORT_LINK_STATS_STREAM_GROUP_KEY, "stats-consumer"),  // 消费者组和消费者名称
                 StreamOffset.create(SHORT_LINK_STATS_STREAM_TOPIC_KEY, ReadOffset.lastConsumed()),  // 指定从上次消费的位置继续读取
-                shortLinkStatsSaveConsumer  // 消息处理逻辑
+                shortLinkStatsSaveStreamConsumer  // 消息处理逻辑
         );
 
         // 返回配置好的 StreamMessageListenerContainer 实例
