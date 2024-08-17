@@ -91,6 +91,7 @@ public class ShortLinkStatsSaveConsumer implements StreamListener<String, MapRec
             // 某某某情况宕机了，删除幂等标识
             messageQueueIdempotentHandler.delMessageProcessed(id.toString());
             log.error("记录短链接监控消费异常", ex);
+            throw ex;
         }
         // 设置消息流程执行完成
         messageQueueIdempotentHandler.setAccomplish(id.toString());
