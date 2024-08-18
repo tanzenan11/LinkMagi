@@ -29,6 +29,7 @@ public final class UserContext {
     // TTL安全线程
     /**
      * <a href="https://github.com/alibaba/transmittable-thread-local" />
+     * 阿里线程池
      */
     private static final ThreadLocal<UserInfoDTO> USER_THREAD_LOCAL = new TransmittableThreadLocal<>();
 
