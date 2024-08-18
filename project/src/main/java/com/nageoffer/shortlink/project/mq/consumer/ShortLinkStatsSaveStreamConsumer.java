@@ -63,7 +63,7 @@ public class ShortLinkStatsSaveStreamConsumer implements StreamListener<String, 
         String stream = message.getStream();
         // 获取消息的 ID
         RecordId id = message.getId();
-        if (!messageQueueIdempotentHandler.isMessageProcessed(id.toString())) { //判断该消息是否消费过
+        if (messageQueueIdempotentHandler.isMessageBeingConsumed(id.toString())) { //判断该消息是否消费过
             // 判断当前的这个消息流程是否执行完成 保证由于异常情况下未删除幂等标识或者未设置完成情况依旧保证幂等
             if (messageQueueIdempotentHandler.isAccomplish(id.toString())) {
                 return;
@@ -79,12 +79,12 @@ public class ShortLinkStatsSaveStreamConsumer implements StreamListener<String, 
             actualSaveShortLinkStats(statsRecord);
             // 删除已经处理的 Stream 消息 ，防止浪费内存
             stringRedisTemplate.opsForStream().delete(Objects.requireNonNull(stream), id.getValue());
-        }catch (Throwable ex) {
+        } catch (Throwable ex) {
             // 某某某情况宕机了，删除幂等标识
             log.error("记录短链接监控消费异常", ex);
             try {
                 messageQueueIdempotentHandler.delMessageProcessed(id.toString());
-            }catch (Throwable remoteEx){
+            } catch (Throwable remoteEx) {
                 log.error("删除幂等标识错误", remoteEx);
             }
             throw ex;

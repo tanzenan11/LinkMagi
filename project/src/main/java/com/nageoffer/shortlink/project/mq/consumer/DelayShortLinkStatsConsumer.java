@@ -52,7 +52,7 @@ public class DelayShortLinkStatsConsumer implements InitializingBean {
                             //判断消息是否存在
                             if (statsRecord != null) {
                                 //消息存在
-                                if (!messageQueueIdempotentHandler.isMessageProcessed(statsRecord.getKeys())) { //判断消息是否被消费
+                                if (messageQueueIdempotentHandler.isMessageBeingConsumed(statsRecord.getKeys())) { //判断消息是否被消费
                                     // 判断当前的这个消息流程是否执行完成 保证由于异常情况下未删除幂等标识或者未设置完成情况依旧保证幂等
                                     if (messageQueueIdempotentHandler.isAccomplish(statsRecord.getKeys())) {
                                         return;

@@ -65,8 +65,8 @@ public class ShortLinkStatsSaveListener {
             exchange = @Exchange(name = "shortLinkStatus.topic", type = ExchangeTypes.TOPIC), //配置交换机，并设置类型为topic
             key = "shortLink.status"
     ))
-    public void onMessage(Map<String, String> producerMap,@Header(AmqpHeaders.MESSAGE_ID) String messageId) {
-        if (!messageQueueIdempotentHandler.isMessageProcessed(messageId)) {
+    public void onMessage(Map<String, String> producerMap, @Header(AmqpHeaders.MESSAGE_ID) String messageId) {
+        if (messageQueueIdempotentHandler.isMessageBeingConsumed(messageId)) {  //判断消息是否被消费
             // 判断当前的这个消息流程是否执行完成
             if (messageQueueIdempotentHandler.isAccomplish(messageId)) {
                 return;
@@ -82,7 +82,7 @@ public class ShortLinkStatsSaveListener {
             log.error("记录短链接监控消费异常", ex);
             try {
                 messageQueueIdempotentHandler.delMessageProcessed(messageId);
-            }catch (Throwable remoteEx){
+            } catch (Throwable remoteEx) {
                 log.error("删除幂等标识错误", remoteEx);
             }
             throw ex;

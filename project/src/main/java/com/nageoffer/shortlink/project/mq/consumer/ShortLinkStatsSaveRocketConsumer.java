@@ -62,7 +62,7 @@ public class ShortLinkStatsSaveRocketConsumer implements RocketMQListener<Map<St
     @Override
     public void onMessage(Map<String, String> producerMap) {
         String keys = producerMap.get("keys");
-        if (!messageQueueIdempotentHandler.isMessageProcessed(keys)) {
+        if (messageQueueIdempotentHandler.isMessageBeingConsumed(keys)) { //判断消息是否被消费
             // 判断当前的这个消息流程是否执行完成
             if (messageQueueIdempotentHandler.isAccomplish(keys)) {
                 return;
