@@ -18,7 +18,8 @@ import com.nageoffer.shortlink.project.common.enums.VailDateTypeEnum;
 import com.nageoffer.shortlink.project.config.GotoDomainWhiteListConfiguration;
 import com.nageoffer.shortlink.project.dao.entity.ShortLinkDO;
 import com.nageoffer.shortlink.project.dao.entity.ShortLinkGotoDO;
-import com.nageoffer.shortlink.project.dao.mapper.*;
+import com.nageoffer.shortlink.project.dao.mapper.ShortLinkGotoMapper;
+import com.nageoffer.shortlink.project.dao.mapper.ShortLinkMapper;
 import com.nageoffer.shortlink.project.dto.biz.ShortLinkStatsRecordDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkBatchCreateReqDTO;
 import com.nageoffer.shortlink.project.dto.req.ShortLinkCreateReqDTO;
@@ -27,7 +28,6 @@ import com.nageoffer.shortlink.project.dto.req.ShortLinkUpdateReqDTO;
 import com.nageoffer.shortlink.project.dto.resp.*;
 import com.nageoffer.shortlink.project.mq.producer.ShortLinkStatsSaveRocketProducer;
 import com.nageoffer.shortlink.project.mq.producer.ShortLinkStatsSaveStreamProducer;
-import com.nageoffer.shortlink.project.service.LinkStatsTodayService;
 import com.nageoffer.shortlink.project.service.ShortLinkService;
 import com.nageoffer.shortlink.project.toolkit.HashUtil;
 import com.nageoffer.shortlink.project.toolkit.LinkUtil;
@@ -73,15 +73,6 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     private final ShortLinkGotoMapper shortLinkGotoMapper;
     private final StringRedisTemplate stringRedisTemplate;
     private final RedissonClient redissonClient;
-    private final LinkAccessStatsMapper linkAccessStatsMapper;
-    private final LinkLocaleStatsMapper linkLocaleStatsMapper;
-    private final LinkOsStatsMapper linkOsStatsMapper;
-    private final LinkBrowserStatsMapper linkBrowserStatsMapper;
-    private final LinkAccessLogsMapper linkAccessLogsMapper;
-    private final LinkDeviceStatsMapper linkDeviceStatsMapper;
-    private final LinkNetworkStatsMapper linkNetworkStatsMapper;
-    private final LinkStatsTodayMapper linkStatsTodayMapper;
-    private final LinkStatsTodayService linkStatsTodayService;
     private final ShortLinkStatsSaveStreamProducer shortLinkStatsSaveStreamProducer;
     private final ShortLinkStatsSaveRocketProducer shortLinkStatsSaveRocketProducer;
     private final GotoDomainWhiteListConfiguration gotoDomainWhiteListConfiguration;
@@ -201,6 +192,7 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         AtomicBoolean uvFirstFlag = new AtomicBoolean();
         Cookie[] cookies = ((HttpServletRequest) request).getCookies();
         AtomicReference<String> uv = new AtomicReference<>();
+        // 创建统计uv访问独立访客数线程任务
         Runnable addResponseCookieTask = () -> {
             uv.set(UUID.fastUUID().toString());
             Cookie uvCookie = new Cookie("uv", uv.get());
@@ -218,9 +210,14 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     .ifPresentOrElse(each -> {
                         uv.set(each);
                         Long uvAdded = stringRedisTemplate.opsForSet().add(SHORT_LINK_STATS_UV_KEY + fullShortUrl, each);
+                        // 利用set判断是否首次访问，若是首次访问添加成功则 uvAdded 大于 0，设置 uvFirstFlag 为 true
                         uvFirstFlag.set(uvAdded != null && uvAdded > 0L);
-                    }, addResponseCookieTask);
+                    }
+                    // 首次访问，如果未找到 "uv" Cookie，执行生成并设置 UV Cookie 的任务
+                    , addResponseCookieTask
+                    );
         } else {
+            // 如果请求中没有 Cookie，执行生成并设置 UV Cookie 的任务
             addResponseCookieTask.run();
         }
         String remoteAddr = LinkUtil.getActualIp(((HttpServletRequest) request));

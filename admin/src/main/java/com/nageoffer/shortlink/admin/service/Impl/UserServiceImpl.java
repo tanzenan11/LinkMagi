@@ -29,6 +29,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.Objects;
@@ -75,6 +76,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
     /**
      * 用户注册
      */
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public void register(UserRegisterReqDTO requestParam) {
         if (hasUsername(requestParam.getUsername())) {
@@ -89,8 +91,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
             if (insert < 1) {
                 throw new ClientException(UserErrorCodeEnum.USER_SAVE_ERROR);
             }
-            userRegisterCachePenetrationBloomFilter.add(requestParam.getUsername());
+            // 由于布隆过滤器无法删除的特性，如果加入用户失败则直接抛出异常，先进行加入默认分组再加入布隆过滤器
             groupService.saveGroup(requestParam.getUsername(), "默认分组");
+            userRegisterCachePenetrationBloomFilter.add(requestParam.getUsername());
         } catch (DuplicateKeyException e) { //拦截唯一索引冲突
             throw new ClientException(USER_EXIST);
         } finally {
