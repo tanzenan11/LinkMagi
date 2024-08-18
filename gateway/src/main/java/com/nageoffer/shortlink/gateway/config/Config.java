@@ -10,6 +10,7 @@ import java.util.List;
 @Data
 public class Config {
 
+
     /**
      * 白名单前置路径
      */
