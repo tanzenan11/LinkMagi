@@ -22,7 +22,7 @@ public class LinkUtil {
      * @return 有限期时间戳
      */
     public static long getLinkCacheValidTime(Date validDate) {
-        // 如果为空则为永久有效，不为空计算与当前时间的间隔以ms为单位
+        // 如果为空则为默认一个月有效期，不为空计算与当前时间的间隔以ms为单位
         return Optional.ofNullable(validDate)
                 //时间后移
                 .map(each -> DateUtil.between(new Date(), each, DateUnit.MS))
