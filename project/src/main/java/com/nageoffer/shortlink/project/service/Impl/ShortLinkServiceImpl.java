@@ -194,12 +194,20 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         AtomicReference<String> uv = new AtomicReference<>();
         // 创建统计uv访问独立访客数线程任务
         Runnable addResponseCookieTask = () -> {
+            // 生成一个新的 UUID 并将其存储在 ThreadLocal 变量 'uv' 中
             uv.set(UUID.fastUUID().toString());
+            // 创建一个名为 "uv" 的 Cookie，值为刚刚生成的 UUID
             Cookie uvCookie = new Cookie("uv", uv.get());
+            // 设置 Cookie 的有效期为 30 天（60 秒 * 60 分钟 * 24 小时 * 30 天）
             uvCookie.setMaxAge(60 * 60 * 24 * 30);
+            // 设置 Cookie 的路径，提取 fullShortUrl 从第一个 '/' 到字符串的末尾部分作为路径  nurl.ink:8001/1qOJlw ->1qOJlw
+            //只有当请求的路径与Cookie的path匹配时，浏览器才会将这个Cookie附带在请求中发给服务端
             uvCookie.setPath(StrUtil.sub(fullShortUrl, fullShortUrl.indexOf("/"), fullShortUrl.length()));
+            // 将 Cookie 添加到 HttpServletResponse 中，返回给客户端
             ((HttpServletResponse) response).addCookie(uvCookie);
+            // 表示新用户
             uvFirstFlag.set(Boolean.TRUE);
+            // 将生成的uv 存入redis set中
             stringRedisTemplate.opsForSet().add(SHORT_LINK_STATS_UV_KEY + fullShortUrl, uv.get());
         };
         if (ArrayUtil.isNotEmpty(cookies)) {
