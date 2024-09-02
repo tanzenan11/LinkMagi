@@ -513,19 +513,19 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         // 尝试次数
         int customGenerateCount = 0;
         String shortUri;
+        String originUrl = requestParam.getOriginUrl(); //获取原始链接
         // 哈希冲突时重试
         while (true) {
             if (customGenerateCount > 10) {
                 throw new ServiceException("短链接频繁生成，请稍后再试");
             }
-            String originUrl = requestParam.getOriginUrl();
             // 加入随机UUID再做哈希是为了防止哈希冲突，这个值越长哈希冲突的可能性就越小
-            originUrl += UUID.randomUUID().toString().replace("-", "");
             shortUri = HashUtil.hashToBase62(originUrl);
             if (!shortUriCreateCachePenetrationBloomFilter.contains(createShortLinkDefaultDomain + "/" + shortUri)) {
                 // 布隆过滤器判断不存在代表没有该数据直接返回
                 break;
             }
+            originUrl += UUID.randomUUID().toString();
             // 如果已存在，那么继续生成
             customGenerateCount++;
         }
